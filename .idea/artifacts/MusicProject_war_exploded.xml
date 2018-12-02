@@ -1,0 +1,16 @@
+<component name="ArtifactManager">
+  <artifact type="exploded-war" name="MusicProject:war exploded">
+    <output-path>$PROJECT_DIR$/out/artifacts/MusicProject_war_exploded</output-path>
+    <root id="root">
+      <element id="javaee-facet-resources" facet="MusicProject/web/Web" />
+      <element id="directory" name="WEB-INF">
+        <element id="directory" name="classes">
+          <element id="module-output" name="MusicProject" />
+        </element>
+      </element>
+      <element id="directory" name="folder">
+        <element id="dir-copy" path="C:/Program Files/Apache Software Foundation/Tomcat 9.0" />
+      </element>
+    </root>
+  </artifact>
+</component>

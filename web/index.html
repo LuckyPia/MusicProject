@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="css/easyhelper.min.css">
+    <link rel="shortcut icon" href="image/music_icon.png" type="image/x-icon">
+    <title>Music Store</title>
+    <script src="jquery/jquery-3.3.1.js"></script>
+    <script src="jquery/jquery.form.js"></script>
+    <script src="jquery/jquery.cookie.js"></script>
+    <script src="jquery/jquery.transit.min.js"></script>
+    <script src="js/es6-shim.min.js"></script>
+    <script src="js/easyhelper.min.js"></script>
+
+    <script type="text/javascript">
+        var userId=-1;//用户ID
+        var username=null;//用户名
+        var password=null;//密码
+        var power=0;//权限判断
+        var isLogin=false;//判断是否登录
+
+        var playId=-1;//播放音乐ID
+        var playFlag=0;
+        var isPlay=false;
+
+        var allMusic;//首页音乐
+        var mineMusic;//我的音乐
+
+        var BASE_URL="http://localhost:8080/";//初始URL/MusicProject
+        var LOGIN_URL="/login";//登录URL
+        var REGISTER_URL="/register";//注册URL
+        var UPLOAD_MUSIC_URL="/upload";//上传音乐URL
+        var GET_MUSIC_URL="/getmusic";//获取所有音乐URL
+        var BUY_MUSIC_URL="/buymusic";//购买音乐URL
+        var BUIED_URL="/buied";//我的音乐URL
+        var DOWNLOAD_URL="/down?path=";//下载音乐URL
+        var PLAY_URL="/upload/";//播放音乐URL
+
+        var colorPrimary="#3e464c";//#607D8B
+        var colorPrimaryDark="#374046";//#455A64
+        var colorAccent="#4CAF50";//#4CAF50
+        var textColor="#ffffff"//#ffffff
+        var white="#ffffff";
+        var black="#000";
+
+        var color1="#3fa044";
+        var color2="#574ce1";
+        //var color3="#ab1551";
+        var color4="#533ab5";
+        //var color5="#ce4217";
+        var color6="#546671";
+        var color7="#fab649";
+        var color8="#eb3573";
+        var colorList=[color1,color2,color4,color6,color7,color8];
+
+
+        $(document).ready(function(){
+            $("#mainDiv").show();
+            $("#downloadAppDiv").hide();
+            $("#aboutUSDiv").hide();
+            $("#mineDiv").hide();
+            $("#player").hide();
+
+            $("#main").css("background",colorPrimaryDark)
+
+            $(".a").hover(function(){
+                $(this).css("color",colorAccent)
+            },function(){
+                $(this).css("color",white)
+            });
+
+            $("#signOut").hide();
+            $("#mineMusicMsg2").hide();
+
+            $("#main").click(function(){
+                $("#main").css("background",colorPrimaryDark)
+                $("#aboutUS").css("background",colorPrimary)
+                $("#mine").css("background",colorPrimary)
+
+                $("#aboutUSDiv").hide();
+                $("#mineDiv").hide();
+                $("#mainDiv").show();
+                $("#mine-box").show();
+            });
+            $("#downloadApp").click(function(){
+                /*$("#main").css("background",colorPrimary)
+                $("#downloadApp").css("background",colorPrimaryDark)
+                $("#aboutUS").css("background",colorPrimary)
+                $("#mine").css("background",colorPrimary)
+
+                $("#mainDiv").hide();
+                $("#aboutUSDiv").hide();
+                $("#mineDiv").hide();
+                $("#downloadAppDiv").show();*/
+            });
+            $("#aboutUS").click(function(){
+                $("#main").css("background",colorPrimary);
+                $("#aboutUS").css("background",colorPrimaryDark);
+                $("#mine").css("background",colorPrimary);
+
+                $("#mainDiv").hide();
+                $("#downloadAppDiv").hide();
+                $("#mineDiv").hide();
+                $("#aboutUSDiv").show();
+                $("#mine-box").show();
+            });
+            $("#mine").click(function(){
+                $("#main").css("background",colorPrimary)
+                $("#aboutUS").css("background",colorPrimary)
+                $("#mine").css("background",colorPrimaryDark)
+
+                $("#mainDiv").hide();
+                $("#aboutUSDiv").hide();
+                $("#mineDiv").show();
+
+                if(isLogin){
+                    $("#loginDiv").hide();
+                    $("#registerDiv").hide();
+                    $("#mineInfoDiv").show();
+
+                    $("#insertMusic").hide();
+                    $("#mineMusic").show();
+                    $("#mine-box").show();
+
+                    getMineMusic();
+                }else{
+                    $("#registerDiv").hide();
+                    $("#mineInfoDiv").hide();
+                    $("#loginDiv").show();
+                    $("#mine-box").hide();
+                }
+            });
+
+            $("#toRegister").click(function(){
+                $("#loginDiv").hide();
+                $("#mineInfoDiv").hide();
+                $("#registerDiv").show();
+            });
+            $("#toLogin").click(function(){
+                $("#registerDiv").hide();
+                $("#mineInfoDiv").hide();
+                $("#loginDiv").show();
+            });
+            $("#toLogin2").click(function () {
+                $("#mine").click();
+            });
+            $("#signOut").click(function () {
+
+                Helper.ui.dialog({
+                    title: "确认登出吗？",
+                    content: "登出将不会保留登录信息!",
+                    yesText: "确定",
+                    noText: "手滑了",
+                    yesCallback: function () {
+                        userId=-1;
+                        power=0;
+                        username=null;
+                        isLogin=false;
+                        if(isPlay){
+                            var player = $("#player")[0];
+                            player.pause();
+                            isPlay=false;
+                        }
+
+                        $.cookie('username_cookie', null);
+                        $.cookie('password_cookie', null);
+                        $(".mine-content").remove();
+
+                        $("#mainDiv").hide();
+                        $("#aboutUSDiv").hide();
+                        $("#mine-box").hide();
+                        $("#mineDiv").show();
+
+                        $("#registerDiv").hide();
+                        $("#mineInfoDiv").hide();
+                        $("#loginDiv").show();
+                        $("#mine").text('请登录');
+                    }
+                });
+
+            });
+            $("#toUpload").click(function () {
+                $("#mineMusic").hide();
+                $("#insertMusic").show();
+            })
+            $("#toMineMusic").click(function () {
+                $("#insertMusic").hide();
+                $("#mineMusic").show();
+
+                getMineMusic();
+            })
+
+            $("#refresh").click(function () {
+                $(".content").remove();
+                getMusic();
+            })
+
+            $(".file").on("change","input[type='file']",function(){
+                var filePath=$(this).val();
+                if(filePath.indexOf("mp3")!=-1){
+                    var arr=filePath.split('\\');
+                    var fileName=arr[arr.length-1];
+                    $("#fileName").html(fileName);
+                }else{
+                    $("#fileName").html("重新选择");
+                    return false
+                }
+            })
+
+            getMusic();
+            autoLogin();
+
+        });
+
+        function getMusic() {
+            $.ajax({
+                url:GET_MUSIC_URL,
+                type:"get",
+                dataType:"json",
+                success: function(data) {
+                    console.log(data);
+                    if(data.errorCode==0){
+                        var item=data.data;
+                        allMusic=item;
+                        var htm = "";
+                        if(item.length==0){
+                            $("#musicMsg").text("当前店内没有音乐在售！");
+                        }else{
+                            $("#musicMsg").text("当前店内有"+item.length+"首音乐在售");
+                            for(var i=0;i<item.length;i++){
+
+                                htm += '<div class="content" align="left">\n' +
+                                    '\n' +
+                                    '        <div style="height: 100%;width: 448px;float: left;">\n' +
+                                    '            <div style="margin-top: 24px">\n' +
+                                    '                <p style="margin-left: 40px;" class="content-text">' + item[i].MusicTitle +' | '
+                                    +item[i].MusicArtist+ '</p>\n' +
+                                    '            </div>\n' +
+                                    '            <div style="margin-top: 8px">\n' +
+                                    '                <p style="margin-left: 40px" class="content-text">'
+                                    + item[i].MusicPrice + ' RMB</p>\n' +
+                                    '            </div>\n' +
+                                    '        </div>\n' +
+                                    '\n' +
+                                    '        <div style="height: 100%;width: 192px;float: left;">\n' +
+                                    '            <div style="float: left;width: 86px;">\n' +
+                                    '                <button type="button" id="'+i+'" class="button-play">试听</button>\n' +
+                                    '            </div>\n' +
+                                    '            <div style="float: left;width: 86px;">\n' +
+                                    '                <button id="'+i+'" type="button" class="button-buy" >购买</button>\n' +
+                                    '            </div>\n' +
+                                    '        </div>\n' +
+                                    '\n' +
+                                    '    </div>';
+
+                            }
+
+                            $("#contentTitle").append(htm);
+                            for(var i=0;i<item.length;i++){
+                                var c=Math.round(Math.random()*(colorList.length-1));
+                                var colorRandom=colorList[c];
+                                $(".content").eq(i).css({"width": "640px","height":"96px","background":colorRandom,"margin-top":"8px","border-radius":"4px"});
+                            }
+                            $(".content-text").css("color",white);
+                            $(".button-buy").click(function () {
+                                console.log("userId:"+userId+"musicId:"+$(this).attr("id"));
+                                var musicId=allMusic[$(this).attr("id")].MusicId;
+                                if(userId!=-1){
+                                    $.ajax({
+                                        url:BUY_MUSIC_URL,
+                                        data:'userid='+userId+'&musicid='+musicId,
+                                        type:"post",
+                                        dataType:"json",
+                                        success: function(data) {
+                                            console.log(data);
+                                            if(data.errorCode==0){
+                                                Helper.ui.dialogSuccess( "购买结果", data.successMsg );
+                                            }else {
+                                                Helper.ui.dialogWarn( "购买结果", data.errorMsg );
+                                            }
+                                        },
+                                        error: function(XMLHttpRequest, textStatus, errorThrown) {
+                                            Helper.ui.dialogError("购买错误","不可预知的错误");
+                                            console.log( "错误代码："+"XMLHttpRequest:"+XMLHttpRequest+"-textStatus:"+textStatus+"-errorThrown:"+errorThrown );
+                                        }
+                                    })
+                                }else {
+                                    Helper.ui.dialogWarn( "抱歉", "请登录后购买！" );
+                                }
+                            });
+                            $(".button-play").click(function () {
+
+                                var musicPath=allMusic[$(this).attr("id")].MusicPath;
+                                var playPath=PLAY_URL+musicPath;
+                                var player = $("#player")[0]; //jquery对象转换成js对象，初始化播放器
+                                if(playFlag==2){
+                                    player.pause();
+                                    playId=-1;
+                                    isPlay=false;
+                                }
+                                playFlag=1;
+
+                                if(playId!=allMusic[$(this).attr("id")].MusicId){
+                                	if(isPlay){
+                                        player.pause();
+                                        $(".button-play").text("试听");
+                                        $(".button-play").css("color","white");
+                                    }
+                                    $("#player").attr("src",playPath);
+                                    console.log($("#player").attr("src"));
+                                    player.play();
+                                    isPlay=true;
+                                    playId=allMusic[$(this).attr("id")].MusicId;
+                                    $(this).text("结束");
+                                    $(this).css("color",colorAccent);
+                                }else{
+                                	if(isPlay){
+                                		player.pause();
+                                        isPlay=false;
+                                        $(this).text("试听");
+                                        $(this).css("color",textColor);
+                                	}else{
+                                		player.play();
+                                        isPlay=true;
+                                        $(this).text("结束");
+                                        $(this).css("color",colorAccent);
+                                	}
+                                }
+
+                            });
+                        }
+
+                    }else {
+                        $("#musicMsg").text("音乐加载失败");
+                    }
+
+                },
+                error: function(XMLHttpRequest, textStatus, errorThrown) {
+                    $("#musicMsg").text("音乐加载错误");
+                    console.log( "错误代码："+"XMLHttpRequest:"+XMLHttpRequest+"-textStatus:"+textStatus+"-errorThrown:"+errorThrown );
+                }
+            })
+        }
+
+        function getMineMusic() {
+            $(".mine-content").remove();
+            $.ajax({
+                url:BUIED_URL,
+                data:'userid='+userId,
+                type:"get",
+                dataType:"json",
+                success: function(data) {
+                    console.log(data);
+                    if(data.errorCode==0){
+                        var item=data.data;
+                        mineMusic=item;
+                        var htm = "";
+                        $("#mineMusicMsg2").show();
+                        if(item.length==0){
+                            $("#mineMusicMsg,#mineMusicMsg2").text("这里什么都木有，快去pick喜欢的吧！");
+                        }else{
+                            $("#mineMusicMsg,#mineMusicMsg2").text("已拥有"+item.length+"首音乐");
+                            for(var i=0;i<item.length;i++){
+
+                                htm += '<div class="mine-content" align="left">\n' +
+                                    '\n' +
+                                    '        <div style="height: 100%;width: 448px;float: left;">\n' +
+                                    '            <div style="margin-top: 24px">\n' +
+                                    '                <p style="margin-left: 40px;" class="content-text">' + item[i].MusicTitle +' | '
+                                    +item[i].MusicArtist+ '</p>\n' +
+                                    '            </div>\n' +
+                                    '            <div style="margin-top: 8px">\n' +
+                                    '                <p style="margin-left: 40px" class="content-text">'
+                                    + item[i].PurchaseTime + '</p>\n' +
+                                    '            </div>\n' +
+                                    '        </div>\n' +
+                                    '\n' +
+                                    '        <div style="height: 100%;width: 192px;float: left;">\n' +
+                                    '            <div style="float: left;width: 86px;">\n' +
+                                    '                <button type="button" id="'+i+'" class="button-play2">试听</button>\n' +
+                                    '            </div>\n' +
+                                    '            <div style="float: left;width: 86px;">\n' +
+                                    '                <button id="'+i+'" type="button" class="button-down" >下载</button>\n' +
+                                    '            </div>\n' +
+                                    '        </div>\n' +
+                                    '\n' +
+                                    '    </div>';
+
+                            }
+
+                            $("#mineMusicTitle").append(htm);
+                            //$(".mine-content").css({"width": "640px","height":"96px","margin-top":"8px","background-color":"white","border-radius":"4px"});
+                            for(var i=0;i<item.length;i++){
+                                var c=Math.round(Math.random()*(colorList.length-1));
+                                var colorRandom=colorList[c];
+                                $(".mine-content").eq(i).css({"width": "640px","height":"96px","background":colorRandom,"margin-top":"8px","border-radius":"4px"});
+                            }
+                            $(".content-text").css("color",white);
+                            $(".button-down").click(function () {
+                                console.log("userId:"+userId+"musicId:"+$(this).attr("id"));
+                                var musicPath=mineMusic[$(this).attr("id")].MusicPath;
+                                console.log(musicPath);
+                                window.open(DOWNLOAD_URL+musicPath);
+                            });
+                            $(".button-play2").click(function () {
+                            	var musicPath=mineMusic[$(this).attr("id")].MusicPath;
+                                var playPath=PLAY_URL+musicPath;
+                            	var player = $("#player")[0]; //jquery对象转换成js对象，初始化播放器
+                                if(playFlag==1){
+                                    player.pause();
+                                    playId=-1;
+                                    isPlay=false;
+                                }
+                                playFlag=2;
+                            	
+                            	if(playId!=mineMusic[$(this).attr("id")].MusicId){
+                                	if(isPlay){
+                                        player.pause();
+                                        $(".button-play2").text("试听");
+                                        $(".button-play2").css("color",textColor);
+                                    }
+                                    $("#player").attr("src",playPath);
+                                    console.log($("#player").attr("src"));
+                                    player.play();
+                                    isPlay=true;
+                                    playId=mineMusic[$(this).attr("id")].MusicId;
+                                    $(this).text("结束");
+                                    $(this).css("color",colorAccent);
+                                }else{
+                                	if(isPlay){
+                                		player.pause();
+                                        isPlay=false;
+                                        $(this).text("试听");
+                                        $(this).css("color",textColor);
+                                	}else{
+                                		player.play();
+                                        isPlay=true;
+                                        $(this).text("结束");
+                                        $(this).css("color",colorAccent);
+                                	}
+                                }
+                            });
+                        }
+
+                    }else {
+                        $("#mineMusicMsg,#mineMusicMsg2").text(data.errorMsg);
+                    }
+
+                },
+                error: function(XMLHttpRequest, textStatus, errorThrown) {
+                    $("#mineMusicMsg,#mineMusicMsg2").text("我的音乐加载错误");
+                    console.log("错误代码："+"XMLHttpRequest:"+XMLHttpRequest+"-textStatus:"+textStatus+"-errorThrown:"+errorThrown)
+                }
+            })
+        }
+
+        //自动登录
+        function autoLogin() {
+            username = $.cookie("username_cookie"); //获取cookie中的用户名
+            password =  $.cookie("password_cookie"); //获取cookie中的登陆密码
+            if(username!=null&&password!=null){
+                $.ajax({
+                    url:LOGIN_URL,
+                    data:'username='+username+'&password='+password,
+                    type:"post",
+                    dataType:"json",
+                    success: function(data) {
+                        console.log(data);
+                        if(data.errorCode==0){
+                            userId=data.data.userid;
+                            power=data.data.power;
+                            username=data.data.username;
+                            password=data.data.password;
+                            isLogin=true;
+                            $("#mine").text("我的");
+                            //$("#mine-content").text(username);
+
+                            $("#mine-box").show();
+                            $("#toLogin2").hide();
+                            $("#signOut").show();
+
+                            if(power==1){
+                                $("#welcome").text(username+"管理员，欢迎您！");
+                                $("#toUpload").show();
+                            }else{
+                                $("#welcome").text("亲爱的"+username+"，欢迎您！");
+                                $("#toUpload").hide();
+                            }
+                        }
+
+                    },
+                    error: function(XMLHttpRequest, textStatus, errorThrown) {
+                    }
+                })
+            }
+
+        }
+
+        //登录
+        function login() {
+            // jquery 表单提交
+            $("#formLogin").ajaxSubmit({
+                url: LOGIN_URL,
+                dataType: "json",
+                success:function(data){ // data 保存提交后返回的数据，一般为 json 数据
+                    console.log(data);
+
+                    if(data.errorCode==0){
+                        $('#formLogin')[0].reset();
+                        $("#loginDiv").hide();
+                        $("#registerDiv").hide();
+                        $("#mineInfoDiv").show();
+
+                        userId=data.data.userid;
+                        power=data.data.power;
+                        username=data.data.username;
+                        password=data.data.password;
+                        isLogin=true;
+                        $.cookie('username_cookie', username, { expires: 7 });
+                        $.cookie('password_cookie', password, { expires: 7 });
+                        password=null;
+
+                        $("#mine").text("我的");
+                        //$("#mine-content").text(username);
+
+                        $("#mine-box").show();
+                        $("#toLogin2").hide();
+                        $("#signOut").show();
+
+                        if(power==1){
+                            $("#welcome").text(username+"管理员，欢迎您！");
+                            $("#toUpload").show();
+                        }else{
+                            $("#welcome").text("亲爱的"+username+"，欢迎您！");
+                            $("#toUpload").hide();
+                        }
+
+                        $("#insertMusic").hide();
+                        $("#mineMusic").show();
+                        $(".mine_content").remove();
+                        getMineMusic();
+                    }else{
+                        userId=-1;
+                        power=-1;
+                        username=null;
+                        isLogin=false;
+                        $("#mine").text('请登录');
+                        Helper.ui.dialogWarn( "登录失败", data.errorMsg );
+                    }
+                },
+                error: function(XMLHttpRequest, textStatus, errorThrown){
+                    Helper.ui.dialogError("登录错误","不可预知的错误");
+                    console.log( "错误代码："+"XMLHttpRequest:"+XMLHttpRequest+"-textStatus:"+textStatus+"-errorThrown:"+errorThrown );
+                }
+            });
+            $('#formLogin')[0].reset();
+            return false; // 必须返回false，否则表单会自己再做一次提交操作，并且页面跳转
+        }
+
+        //注册
+        function register() {
+            // jquery 表单提交
+            $("#formRegister").ajaxSubmit({
+                url: REGISTER_URL,
+                dataType: "json",
+                success:function(data) {
+                    console.log(data);
+                    if (data.errorCode == 0) {
+                        Helper.ui.dialogSuccess( "注册成功，", "快去登录吧" );
+                        $('#formRegister')[0].reset();
+                    } else {
+                        Helper.ui.dialogWarn( "抱歉", data.errorMsg );
+
+                    }
+                },
+                error: function(XMLHttpRequest, textStatus, errorThrown){
+                    Helper.ui.dialogError("注册错误","不可预知的错误");
+                    console.log( "错误代码："+"XMLHttpRequest:"+XMLHttpRequest+"-textStatus:"+textStatus+"-errorThrown:"+errorThrown );
+                }
+            })
+            $('#formRegister')[0].reset();
+            return false; // 必须返回false，否则表单会自己再做一次提交操作，并且页面跳转
+        }
+
+        //上传音乐
+        function uploadMusic() {
+            if(power==0){
+                Helper.ui.dialogError( "抱歉", "您没有权限上传音乐！" );
+            }{
+                $("#uploadMusic").ajaxSubmit({
+                    url: UPLOAD_MUSIC_URL,
+                    dataType: "json",
+                    success:function(data) {
+                        console.log(data);
+                        if(data.errorCode==0){
+                            Helper.ui.dialogSuccess( "音乐上传结果", "上传成功" );
+                            $('#uploadMusic')[0].reset();
+                        }else{
+                            Helper.ui.dialogWarn( "音乐上传结果", data.errorMsg );
+                        }
+                    },
+                    error: function(XMLHttpRequest, textStatus, errorThrown){
+                        Helper.ui.dialogError("上传错误","不可预知的错误");
+                        console.log( "错误代码："+"XMLHttpRequest:"+XMLHttpRequest+"-textStatus:"+textStatus+"-errorThrown:"+errorThrown );
+                    }
+                });
+            }
+            return false;
+        }
+
+
+    </script>
+</head>
+<body>
+<style  type="text/css">
+    *{
+        margin: 0px;
+        padding: 0px;
+        outline:none;
+    }
+    body{
+        background-color: #374046;
+    }
+    h1{
+        color: #374046;
+    }
+    a{
+        color:#4CAF50;
+    }
+
+    #nav{
+        width: 100%;
+        position:fixed;
+        top: 0;
+    }
+    #menu {
+        font:16px verdana, arial, sans-serif; /* 设置文字大小和字体样式 */
+        color: white;
+        width: 720px;
+    }
+    #menu, #menu li {
+        list-style:none; /* 将默认的列表符号去掉 */
+        padding:0; /* 将默认的内边距去掉 */
+        margin:0; /* 将默认的外边距去掉 */
+        float:left; /* 往左浮动 */
+        display: block;
+    }
+    #menu li a {
+        display:block; /* 将链接设为块级元素 */
+        width:120px; /* 设置宽度 */
+        height:48px; /* 设置高度 */
+        line-height:48px; /* 设置行高，将行高和高度设置同一个值，可以让单行文本垂直居中 */
+        text-align:center; /* 居中对齐文字 */
+        color:white;
+        background:#3e464c; /* 设置背景色 */
+        text-decoration:none; /* 去掉下划线 */
+    }
+
+
+    .input-normal{
+        width: 240px;
+        height: 18px;
+        border: 1px solid #ccc;
+        padding: 7px 0px;
+        border-radius: 2px;
+        padding-left:5px;
+        -webkit-box-shadow: inset 0 1px 1px rgba(0,0,0,.075);
+        box-shadow: inset 0 1px 1px rgba(0,0,0,.075);
+        -webkit-transition: border-color ease-in-out .15s,-webkit-box-shadow ease-in-out .15s;
+        -o-transition: border-color ease-in-out .15s,box-shadow ease-in-out .15s;
+        transition: border-color ease-in-out .15s,box-shadow ease-in-out .15s
+    }
+    .input-normal:focus{
+        border-color: #4CAF50;
+        outline: none;
+        -webkit-box-shadow: inset 0 1px 1px rgba(0,0,0,.075),0 0 8px rgba(129,199,132,.6);
+        box-shadow: inset 0 1px 1px rgba(0,0,0,.075),0 0 8px rgba(129,199,132,.6)
+    }
+
+
+    .button-mine{
+        height: 48px;
+        width: 128px;
+        background: #3e464c;
+        color:white;
+        font-weight: lighter;
+        border:0;
+        border-radius:3px;
+        font-size: 16px;
+    }
+    .button-mine:hover{
+        color: #4CAF50;
+    }
+    .button-mine:active{
+        background: #374046;
+    }
+
+    .button-normal,.button-play,.button-buy,.button-play2,.button-down{
+        height: 36px;
+        width: 54px;
+        background: #3e464c;
+        color:white;
+        font-weight: lighter;
+        border:0;
+        border-radius:4px;
+        font-size: 16px;
+        cursor: pointer;
+        margin-top: 32px;
+    }
+    .button-normal:hover,.button-play:hover,.button-buy:hover,.button-play2:hover,.button-down:hover{
+        color: #4CAF50;
+    }
+    .button-normal:active,.button-play:active,.button-buy:active,.button-play2:active,.button-down:active{
+        background: #374046;
+    }
+
+    .file {
+        font-size: 14px;
+        width: 80px;
+        height: 30px;
+        line-height: 30px;
+        text-align: center;
+        position: relative;
+        cursor: pointer;
+        color: #fff;
+        background: #a5d6a7;
+        border-radius: 3px;
+        overflow: hidden;
+        display: inline-block;
+        text-decoration: none;
+    }
+
+    .file input {
+        position: absolute;
+        font-size: 100px;
+        right: 0;
+        top: 0;
+        opacity: 0;
+        filter: alpha(opacity=0);
+        cursor: pointer
+    }
+
+
+</style>
+<div id="nav">
+    <nav style="background: #3e464c;">
+        <div class="container" style="height:48px;">
+            <h1 id="main-title" style="line-height: 48px;margin: 0 0 0 10px;font-size: 24px;float: left;font-weight: 300;display: block;">
+                <a href="#">
+                    <span style="color: #4CAF50">music</span>
+                    <span style="color: white"> store</span>
+                </a>
+            </h1>
+            <div style="height:48px; width:480px;left:40%;position: absolute;display: block;">
+                <ul id="menu">
+                    <li><a class="a" href="#" id="main">首页</a></li>
+                    <li><a class="a" href="#" id="aboutUS">关于</a></li>
+                    <li><a class="a" href="#" id="mine">请登录</a></li>
+                    <li>
+                        <audio id="player" controls="controls" />
+                    </li>
+                </ul>
+            </div>
+            <h1 id="downloadApp" style="line-height: 48px;margin: 0 10px 0 0;font-size: 18px;float: right;font-weight:lighter;display: block;">
+                <a href="#">
+                    <span style="color: white">下载</span>
+                    <span style="color: #4CAF50">APP</span>
+                </a>
+            </h1>
+        </div>
+    </nav>
+</div>
+
+<div align="center" style="width: 100%; ">
+    <div style="width: 1160px;margin: 0 auto;margin-top:86px;">
+
+        <div style="width: 640px;float: left;margin-left:252px;">
+            <div align="center" style="width: 640px" id="mainDiv">
+                <div id="contentTitle" class="title" style="width: 640px;height:86px;margin-bottom:12px;background-color:white;border-radius:8px" align="center">
+                    <h1>音乐商店</h1>
+                    <p id="musicMsg">当前店内有0首音乐</p>
+                    <a href="#" id="refresh">刷新</a>
+                </div>
+
+            </div>
+
+            <div align="center" style="width: 640px" id="aboutUSDiv">
+                <div class="body" style="width: 640px;height:96px;background-color:white;border-radius:8px">
+                    <p> 这里是网上音乐店，液✌</p>
+                </div>
+            </div>
+
+            <div align="center" style="width: 640px" id="mineDiv">
+                <div id="loginDiv" align="center">
+                    <div style="width: 640px;height:360px;margin:10px;background-color:white;border-radius:8px">
+                        <form id="formLogin" method="post" onsubmit="return login();">
+                            <h1 style="padding:24px 0 0 0;">登录</h1>
+                            <div  style="padding:36px 0 0 0;">
+                                <label>账号：</label>
+                                <input id="username" type="text" class="input-normal" name="username" title="账号" placeholder="账号" required="required">
+                            </div>
+                            <div style="padding:20px 0 0 0;">
+                                <label>密码：</label>
+                                <input id="password" type="password" class="input-normal" name="password" title="密码" placeholder="密码" required="required">
+                            </div>
+                            <div style="padding:40px 0 0 0;">
+                                <button id="loginButton" class="button-mine" type="submit">登录</button>
+                                <button id="toRegister" class="button-mine" style="margin-left:36px" type="button">去注册</button>
+                            </div>
+
+                        </form>
+                    </div>
+                </div>
+
+                <div style="width: 640px" id="registerDiv">
+                    <div style="width: 640px;height:360px;margin:10px;background-color:white;border-radius:8px">
+
+                        <form id="formRegister" method="post" action="/WebMobileGroupChatServer/register" onsubmit="return register();">
+                            <h1 style="padding:24px 0 0 0;">注册</h1>
+                            <div  style="padding:36px 0 0 0;">
+                                <label>账号：</label>
+                                <input id="registerUsername" class="input-normal" type="text" name="username" title="账号" placeholder="请输入账号" required="required">
+                            </div>
+                            <div style="padding:20px 0 0 0;">
+                                <label>密码：</label>
+                                <input id="registerPassword" class="input-normal" type="password" name="password" title="密码" placeholder="密码" required="required">
+                            </div>
+                            <div style="padding:20px 30px 0 0;">
+                                <label>确认密码：</label>
+                                <input id="registeRePassword" class="input-normal" type="password" name="repassword" title="确认密码" placeholder="确认密码" required="required">
+                            </div>
+                            <div style="padding:40px 0 0 0;">
+                                <button id="registerButton" class="button-mine" type="submit">注册</button>
+                                <button id="toLogin" class="button-mine" style="margin-left:36px" type="button">去登录</button>
+                            </div>
+
+                        </form>
+
+                    </div>
+                </div>
+
+                <div id="mineInfoDiv">
+                    <div style="width: 640px;height:24px;background-color:white;border-radius:8px">
+
+                        <div>
+                            <a href="#" id="toUpload">上传音乐</a>
+                            <a href="#" id="toMineMusic">我的音乐</a>
+                        </div>
+
+                    </div>
+
+
+                    <div style="width: 640px;" id="mineMusic">
+                        <div id="mineMusicTitle" style="width: 640px;height:64px;margin-top:12px;background-color:white;border-radius:4px">
+                            <h1>我的音乐</h1>
+                            <p id="mineMusicMsg">已拥有0首音乐</p>
+                        </div>
+                    </div>
+
+                    <div id="insertMusic" style="width: 640px;height:450px;margin-top:12px;background-color:white;border-radius:4px">
+                        <form id="uploadMusic" action="/MyFirstWebApp_war_exploded/upload" method="post" enctype="multipart/form-data" onsubmit="return uploadMusic();">
+                            <h1 style="padding:24px 0 0 0;">上传音乐</h1>
+                            <div id="newsDiv" style="padding:36px 0 0 0;">
+                                <div >
+                                    <label>标题：</label>
+                                    <input type="text" value="" class="input-normal" name="title" id="title" title="标题" placeholder="音乐标题（必填）" required="required" />
+                                </div>
+                                <div  style="padding:32px 0 0 0;">
+                                    <label>作者：</label>
+                                    <input type="text" value="" class="input-normal" name="artist" id="artist" title="标题" placeholder="音乐作者（必填）" required="required" />
+                                </div>
+                                <div  style="padding:32px 0 0 0;">
+                                    <label>售价：</label>
+                                    <input type="text" value="" class="input-normal" name="price" id="price" title="标题" placeholder="音乐售价（必填）" required="required" />
+                                </div>
+                            </div>
+                            <div id="mediaId" style="padding:32px 0 0 0;">
+                                <a href="javascript:;" class="file" style="width: 96px">
+                                    <span id="fileName">选择音乐</span>
+                                    <input type="file" name="music" id="myfile" required="required">
+                                </a>
+                            </div>
+                            <button style="margin-top:24px;"  type="submit" class="button-mine">上传</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div style="width: 260px;height:100px;margin-left: 8px;float: left;background-color: white;border-radius: 8px;" id="mine-box">
+            <p id="welcome">欢迎，未登录</p>
+            <p id="mineMusicMsg2">已拥有0首音乐</p>
+            <a href="#" id="toLogin2">去登陆</a>
+            <a href="#" id="signOut">退出登录</a>
+
+        </div>
+
+    </div>
+
+</div>
+
+</body>
+</html>
